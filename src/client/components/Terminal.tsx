@@ -7,6 +7,9 @@ import { WebLinksAddon } from 'xterm-addon-web-links';
 import XtermWebfont from 'xterm-webfont/src';
 import { ResizeSensor } from 'css-element-queries';
 import { bindSocketToTerminal, BoundSocketListeners, releaseSocketFromTerminal } from '../server-comm';
+// eslint-disable-next-line @typescript-eslint/ban-ts-ignore
+// @ts-ignore: There are no TS defs for this library, but I don't have time to write some
+import Image from './netpbm';
 // eslint-disable-next-line no-undef
 import Socket = SocketIOClient.Socket;
 
@@ -14,7 +17,10 @@ type TerminalProps = {
     id?: string;
     socket?: Socket;
     onResize?: (rows: number, cols: number) => void;
+    gotImageFromProgram: (image: HTMLImageElement) => void;
 }
+
+const EOI_MARKER = '==EOI==';
 
 function getTerminalColors(): {[key: string]: string} {
     // HACK: xterm needs the terminal colors JS-side, but we've declared them
@@ -67,9 +73,16 @@ class Terminal extends React.Component<TerminalProps> {
     // unmounts.
     boundSocketListeners?: BoundSocketListeners;
 
+    termBuf: string;
+    imageBuf: string;
+    parsingImage: boolean;
+
     constructor(props: TerminalProps) {
         super(props);
         this.xtermDiv = React.createRef();
+        this.termBuf = '';
+        this.imageBuf = '';
+        this.parsingImage = false;
     }
 
     componentDidMount(): void {
@@ -142,13 +155,50 @@ class Terminal extends React.Component<TerminalProps> {
         }
     };
 
+    onTerminalOutput(data: string): void {
+        this.termBuf += data;
+        /* eslint-disable no-console */
+        if (this.parsingImage) {
+            this.imageBuf += data;
+            if (this.imageBuf.includes(EOI_MARKER)) {
+                const eoiIndex = this.imageBuf.indexOf(EOI_MARKER);
+                this.imageBuf = this.imageBuf.substr(0, eoiIndex);
+                const remaining = this.imageBuf.substr(eoiIndex);
+                let img;
+                try {
+                    img = new Image(this.imageBuf);
+                    this.props.gotImageFromProgram(img.getPNG());
+                } catch (e) {
+                    this.term.write('[CPLAYGROUND] can\'t parse image\n');
+                }
+                this.termBuf = '';
+                this.imageBuf = '';
+                this.parsingImage = false;
+
+                if (remaining.length > 0) this.term.write(remaining);
+            }
+        } else if ((!this.parsingImage) && this.termBuf.includes('P3')) {
+            this.parsingImage = true;
+            // this.term.write('[CPLAYGROUND] detected PPM P3 image...\n');
+            // console.log('detected PPM P3 image...');
+            const startIndex = this.termBuf.indexOf('P3');
+            this.imageBuf = this.termBuf.substr(startIndex);
+        } else if (this.termBuf.length > 120) {
+            this.termBuf = this.termBuf.substr(-80);
+            this.term.write(data);
+        } else {
+            this.term.write(data);
+        }
+        /* eslint-enable no-console */
+    }
+
     bindToSocket(socket: Socket): void {
         // Bind onReceiveSocketData to be run whenever data comes in, and save two functions
         // (provided by server-comm.ts) to be called when we want to send data or announce a
         // resize
         this.boundSocketListeners = bindSocketToTerminal(
             socket,
-            (data: string) => this.term.write(data),
+            (data: string) => this.onTerminalOutput(data),
             (fn: (data: string) => void) => {
                 this.sendDataToSocket = fn;
             },

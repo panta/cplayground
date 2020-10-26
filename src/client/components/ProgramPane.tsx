@@ -2,6 +2,7 @@ import * as React from 'react';
 
 import Terminal from './Terminal';
 import Debugger from './Debugger';
+import ImageContainer from './ImageContainer';
 import { DebugServer } from '../server-comm';
 import { ContainerInfo } from '../../common/communication';
 
@@ -12,11 +13,17 @@ type ProgramPaneProps = {
     debugData?: ContainerInfo;
     pidColorMap?: {[pid: number]: string};
     onResize?: (rows: number, cols: number) => void;
+    image?: HTMLImageElement;
+    gotImageFromProgram: (image: HTMLImageElement) => void;
 }
 
 const ProgramPane: React.FunctionComponent<ProgramPaneProps> = (props: ProgramPaneProps) => (
     <div className="program-pane">
-        <Terminal socket={props.socket} onResize={props.onResize} />
+        <Terminal
+            socket={props.socket}
+            onResize={props.onResize}
+            gotImageFromProgram={props.gotImageFromProgram}
+        />
         {props.debug && (
             <Debugger
                 debugServer={props.debugServer}
@@ -24,6 +31,7 @@ const ProgramPane: React.FunctionComponent<ProgramPaneProps> = (props: ProgramPa
                 pidColorMap={props.pidColorMap}
             />
         )}
+        <ImageContainer image={props.image} />
     </div>
 );
 

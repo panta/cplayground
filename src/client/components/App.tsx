@@ -36,6 +36,7 @@ type AppState = {
     debugServer?: Server.DebugServer;
     debugData?: ContainerInfo;
     breakpoints: number[];
+    image?: HTMLImageElement;
 };
 
 class App extends React.PureComponent<AppProps, AppState> {
@@ -48,6 +49,7 @@ class App extends React.PureComponent<AppProps, AppState> {
             terminalSize: { rows: 80, cols: 24 },
             programRunning: false,
             breakpoints: [],
+            image: null,
         };
     }
 
@@ -128,6 +130,14 @@ class App extends React.PureComponent<AppProps, AppState> {
     onBreakpointChange = (breakpoints: number[]): void => {
         this.setState({ breakpoints });
     };
+
+    setImage = (image: HTMLImageElement): void => {
+        this.setState({ image });
+    }
+
+    gotImageFromProgram = (image: HTMLImageElement): void => {
+        this.setImage(image);
+    }
 
     /**
      * Opens the current program in a new tab in non-embedded mode.
@@ -292,6 +302,8 @@ class App extends React.PureComponent<AppProps, AppState> {
                         debugServer={this.state.debugServer}
                         debugData={this.state.debugData}
                         pidColorMap={this.generatePidColorMap()}
+                        gotImageFromProgram={this.gotImageFromProgram}
+                        image={this.state.image}
                     />
                 </div>
             </>
